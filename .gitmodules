@@ -1,0 +1,3 @@
+[submodule "opentracing-c"]
+	path = opentracing-c
+	url = https://github.com/opentracing/opentracing-c.git

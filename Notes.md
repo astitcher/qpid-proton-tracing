@@ -41,7 +41,7 @@ Notes for message tracing for Proton based applications
 
   - *We should very definitely consider producing an RPC framework that can do OpenTracing transparently*
     - This would obviously require us to implement hooks into proton that can inject and extract tracing ids which is prerequisite for users to do the application work.
-    - But we could also introduce our own RPC implementation using AMQP (or actually whatever) that transparently introduces the trace ids and transfers them over hte network so that tracing can be performed.
+    - But we could also introduce our own RPC implementation using AMQP (or actually whatever) that transparently introduces the trace ids and transfers them over the network so that tracing can be performed.
 
 - Possible steps
   1. Prototype code that can inject/extract tracing ids from AMQP messages
@@ -54,4 +54,7 @@ Notes for message tracing for Proton based applications
 - Useful/Interesting External Sources
 -- Events or Spans? The Opentracing API uses spans, but events maybe more natural and useful: https://medium.com/opentracing/open-for-event-based-tracing-a326c295f2a2
 
--- Dapper paper https://ai.google/research/pubs/pub36356
+-- Dapper paper: https://ai.google/research/pubs/pub36356
+
+-- Opentracing Project: https://opentracing.io/
+-- Opentracing Project Specification: https://opentracing.io/specification/
