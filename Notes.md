@@ -35,7 +35,7 @@ Notes for message tracing for Proton based applications
 
   - This is not currently possible for us as we have no such RPC abstraction (At least in proton-c or anything using it).
 
-  - Maybe Some things in JAva land have such an abstraction - Vrtx? In which case we could build some infrastructure like google to automatically put together RPC traces without application programmer overhead.
+  - Maybe Some things in Java land have such an abstraction - Vrtx? In which case we could build some infrastructure like google to automatically put together RPC traces without application programmer overhead.
 
   - Even for the Google case (in 2010 at least) they comment that some number of their own systems use direct TCP or custom communication schemes and so can't transparently use the Dapper framework. These applications need some glue to connect to the Dapper tracing - we are currently in this situation.
 
@@ -47,6 +47,11 @@ Notes for message tracing for Proton based applications
   1. Prototype code that can inject/extract tracing ids from AMQP messages
      - Seems like this might be an addition to proton-c reusable by any of its users/
   2. New code in router/broker (elsewhere too? - EnMaas?) which uses the trace ids of incoming/outgoing messages to record trace spans for them as they are read from the network/queued and dequeued and written to the network.
-     - Obviously the precise spans recorded here will depend on the exact function of the network elelment.
+     - Obviously the precise spans recorded here will depend on the exact function of the network element.
      - Any extra operations occuring to support the spans from incoming messages (for example messages sent for authentication or message routing purposes) should be recorded as related spans (hopefully in some way that can be automatic)
   3. Produce some sort of RPC mechanism that renders span generation automatic.
+
+- Useful/Interesting External Sources
+-- Events or Spans? The Opentracing API uses spans, but events maybe more natural and useful: https://medium.com/opentracing/open-for-event-based-tracing-a326c295f2a2
+
+-- Dapper paper https://ai.google/research/pubs/pub36356
