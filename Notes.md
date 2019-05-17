@@ -31,7 +31,7 @@ Notes for message tracing for Proton based applications
 - Google Dapper
   - Google comment in their paper that they can use the tracing without explicit extra programming in the applications. They also talk about instrumenting low level libraries (used for amongst other things threading).
   
-  - This is only possible because they already have an RPC abstraction/abstractions that they can instrument to form the spans and the relationships between them implicitly because of the flow of RPC events into various asynchrouns executions (local and remote)
+  - This is only possible because they already have an RPC abstraction/abstractions that they can instrument to form the spans and the relationships between them implicitly because of the flow of RPC events into various asynchronous executions (local and remote)
 
   - This is not currently possible for us as we have no such RPC abstraction (At least in proton-c or anything using it).
 
@@ -51,10 +51,15 @@ Notes for message tracing for Proton based applications
      - Any extra operations occuring to support the spans from incoming messages (for example messages sent for authentication or message routing purposes) should be recorded as related spans (hopefully in some way that can be automatic)
   3. Produce some sort of RPC mechanism that renders span generation automatic.
 
+- Some light dawns!
+  We actually need *two* separate inter-related pieces
+  - The tracing part which supports the OpenTracing API interfaces - inject/extract to the underlying protocol to pass the SpanContexts around.
+  - And the Jaeger specific part which passes the actual tracing info to the Jaeger agent (and is configured by it).
+
 - Useful/Interesting External Sources
--- Events or Spans? The Opentracing API uses spans, but events maybe more natural and useful: https://medium.com/opentracing/open-for-event-based-tracing-a326c295f2a2
-
--- Dapper paper: https://ai.google/research/pubs/pub36356
-
--- Opentracing Project: https://opentracing.io/
--- Opentracing Project Specification: https://opentracing.io/specification/
+  - Events or Spans? The Opentracing API uses spans, but events maybe more natural and useful: https://medium.com/opentracing/open-for-event-based-tracing-a326c295f2a2
+  - Dapper paper: https://ai.google/research/pubs/pub36356
+  - Opentracing Project: https://opentracing.io/
+  - Opentracing Project Specification: https://opentracing.io/specification/
+  - W3C Distributed Tracing Spec: https://www.w3.org/2018/distributed-tracing/
+  - W3C AMQP Trace Context Spec: https://github.com/w3c/trace-context-amqp

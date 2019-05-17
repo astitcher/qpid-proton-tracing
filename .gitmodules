@@ -1,3 +1,6 @@
 [submodule "opentracing-c"]
 	path = opentracing-c
 	url = https://github.com/opentracing/opentracing-c.git
+[submodule "opentracing-tutorial"]
+	path = opentracing-tutorial
+	url = https://github.com/yurishkuro/opentracing-tutorial.git
