@@ -1,0 +1,15 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+python-qpid-proton = "*"
+opentracing = "<3,>=2"
+jaeger-client = {editable = true,git = "https://github.com/yurishkuro/jaeger-client-python.git",ref = "d631596415cb549a4e8314cc25d6c53fab710528"}
+futures = "*"
+
+[requires]
+python_version = "3.7"
