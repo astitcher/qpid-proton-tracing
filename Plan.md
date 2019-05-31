@@ -5,7 +5,7 @@ so that we could automatically get tracing relationships between messages being 
 around a distributed system.
 
 ## Need to model a span:
-These are some intial thoughts for some more depth see [WorkingNotes.md]
+These are some intial thoughts for some more depth see [WorkingNotes]
 - Unlike RPCs general async messages don't have a natural span.
 - Possibilities:
   - Span from send to settlement of delivery - annotate with disposition modifications
@@ -35,3 +35,4 @@ However this would give you no insight into the behaviour of network and messagi
 - For the broker this is probably things like additional spans for directing to queues, queuing, dequeing.
 - For the router it would be similar. However the router has a technical issue in that it is written in C and Opentracing has no official C API, although there is a C API that is available it is not clear how well maintained it is.
 
+[WorkingNotes]: WorkingNotes.md
