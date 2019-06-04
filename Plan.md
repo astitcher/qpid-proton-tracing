@@ -31,7 +31,7 @@ Once we have the above bits in out bindings say Python and C++ initially then ap
 However this would give you no insight into the behaviour of network and messaging elements (Routers and Broker).
 
 ## More Pieces
-- So to be most useful we need to be addding tracing to the router and the broker so that they extract the span ids and annotate them with relevant info.
+- So to be most useful we need to be adding tracing to the router and the broker so that they extract the span ids and annotate them with relevant info.
 - For the broker this is probably things like additional spans for directing to queues, queuing, dequeing.
 - For the router it would be similar. However the router has a technical issue in that it is written in C and Opentracing has no official C API, although there is a C API that is available it is not clear how well maintained it is.
 
