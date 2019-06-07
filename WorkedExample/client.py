@@ -24,11 +24,16 @@ from proton import Message
 from proton.handlers import MessagingHandler
 from proton.reactor import Container, DynamicNodeProperties
 
+from tracing import init_tracer, fini_tracer, trace_consumer_handler, trace_send, trace_settle
+
+tracer = init_tracer('client')
+
 class Client(MessagingHandler):
     def __init__(self, url, requests):
         super(Client, self).__init__()
         self.url = url
         self.requests = requests
+        self.current_span = None
 
     def on_start(self, event):
         self.sender = event.container.create_sender(self.url)
@@ -36,14 +41,20 @@ class Client(MessagingHandler):
 
     def next_request(self):
         if self.receiver.remote_source.address:
+            self.current_span = tracer.start_span('client-process-request', ignore_active_span=True)
             req = Message(reply_to=self.receiver.remote_source.address, body=self.requests[0])
-            self.sender.send(req)
+            trace_send(tracer, self.sender, req, child_of=self.current_span)
+
+    def on_settled(self, event):
+        trace_settle(tracer, event.delivery)
 
     def on_link_opened(self, event):
         if event.receiver == self.receiver:
             self.next_request()
 
+    @trace_consumer_handler(tracer, 'client-process-reply')
     def on_message(self, event):
+        self.current_span.finish()
         print("%s => %s" % (self.requests.pop(0), event.message.body))
         if self.requests:
             self.next_request()
@@ -63,3 +74,4 @@ opts, args = parser.parse_args()
 
 Container(Client(opts.address, args or REQUESTS)).run()
 
+fini_tracer(tracer)

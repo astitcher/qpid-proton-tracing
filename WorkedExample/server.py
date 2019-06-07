@@ -24,6 +24,10 @@ from proton import Message, Url
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
 
+from tracing import init_tracer, fini_tracer, trace_consumer_handler, trace_send, trace_settle
+
+tracer = init_tracer('server')
+
 class Server(MessagingHandler):
     def __init__(self, url, address):
         super(Server, self).__init__()
@@ -37,10 +41,15 @@ class Server(MessagingHandler):
         self.receiver = event.container.create_receiver(self.conn, self.address)
         self.server = self.container.create_sender(self.conn, None)
 
+    @trace_consumer_handler(tracer, 'server-process-message')
     def on_message(self, event):
         print("Received", event.message)
-        self.server.send(Message(address=event.message.reply_to, body=event.message.body.upper(),
-                            correlation_id=event.message.correlation_id))
+        trace_send(tracer, self.server,
+            Message(address=event.message.reply_to, body=event.message.body.upper(),
+                    correlation_id=event.message.correlation_id))
+
+    def on_settled(self, event):
+        trace_settle(tracer, event.delivery)
 
 parser = optparse.OptionParser(usage="usage: %prog [options]")
 parser.add_option("-a", "--address", default="localhost:5672/examples",
@@ -53,5 +62,4 @@ try:
     Container(Server(url, url.path)).run()
 except KeyboardInterrupt: pass
 
-
-
+fini_tracer(tracer)
