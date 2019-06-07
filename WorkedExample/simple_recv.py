@@ -23,7 +23,7 @@ import optparse
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
 
-from tracing import init_tracer, trace_consumer_handler
+from tracing import init_tracer, fini_tracer, trace_consumer_handler
 
 tracer = init_tracer('simple-receiver')
 
@@ -60,5 +60,4 @@ try:
     Container(Recv(opts.address, opts.messages)).run()
 except KeyboardInterrupt: pass
 
-
-
+fini_tracer(tracer)

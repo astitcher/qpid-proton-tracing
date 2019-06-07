@@ -25,7 +25,7 @@ from proton import Message
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
 
-from tracing import init_tracer, trace_send, trace_settle
+from tracing import init_tracer, fini_tracer, trace_send, trace_settle
 
 tracer = init_tracer('simple-sender')
 
@@ -69,3 +69,5 @@ try:
     Container(Send(opts.address, opts.messages)).run()
 
 except KeyboardInterrupt: pass
+
+fini_tracer(tracer)
