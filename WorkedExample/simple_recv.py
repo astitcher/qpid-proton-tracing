@@ -23,6 +23,10 @@ import optparse
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
 
+from tracing import init_tracer, trace_consumer_handler
+
+tracer = init_tracer('simple-receiver')
+
 class Recv(MessagingHandler):
     def __init__(self, url, count):
         super(Recv, self).__init__()
@@ -33,6 +37,7 @@ class Recv(MessagingHandler):
     def on_start(self, event):
         event.container.create_receiver(self.url)
 
+    @trace_consumer_handler(tracer, 'amqp-delivery-receive')
     def on_message(self, event):
         if event.message.id and event.message.id < self.received:
             # ignore duplicate message

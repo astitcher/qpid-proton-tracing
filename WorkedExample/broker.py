@@ -23,6 +23,10 @@ from proton import Endpoint
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
 
+from tracing import init_tracer, trace_consumer_handler, trace_send, trace_settle
+
+tracer = init_tracer('broker')
+
 class Queue(object):
     def __init__(self, dynamic=False):
         self.dynamic = dynamic
@@ -38,6 +42,8 @@ class Queue(object):
         return len(self.consumers) == 0 and (self.dynamic or self.queue.count == 0)
 
     def publish(self, message):
+        span = tracer.start_span('queue-message')
+        message.span = span
         self.queue.append(message)
         self.dispatch()
 
@@ -53,7 +59,10 @@ class Queue(object):
             result = False
             for c in consumers:
                 if c.credit:
-                    c.send(self.queue.popleft())
+                    msg = self.queue.popleft()
+                    span = msg.span
+                    trace_send(tracer, c, msg, child_of=span)
+                    span.finish()
                     result = True
             return result
         except IndexError: # no more messages
@@ -111,6 +120,10 @@ class Broker(MessagingHandler):
     def on_sendable(self, event):
         self._queue(event.link.source.address).dispatch(event.link)
 
+    def on_settled(self, event):
+        trace_settle(tracer, event.delivery)
+
+    @trace_consumer_handler(tracer, 'amqp-delivery-receive')
     def on_message(self, event):
         address = event.link.target.address
         if address is None:
