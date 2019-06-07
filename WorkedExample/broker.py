@@ -23,7 +23,7 @@ from proton import Endpoint
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
 
-from tracing import init_tracer, trace_consumer_handler, trace_send, trace_settle
+from tracing import init_tracer, fini_tracer, trace_consumer_handler, trace_send, trace_settle, follows_from
 
 tracer = init_tracer('broker')
 
@@ -42,7 +42,7 @@ class Queue(object):
         return len(self.consumers) == 0 and (self.dynamic or self.queue.count == 0)
 
     def publish(self, message):
-        span = tracer.start_span('queue-message')
+        span = tracer.start_span('queue-message', ignore_active_span=True, references=[follows_from(tracer.active_span)])
         message.span = span
         self.queue.append(message)
         self.dispatch()
@@ -61,7 +61,7 @@ class Queue(object):
                 if c.credit:
                     msg = self.queue.popleft()
                     span = msg.span
-                    trace_send(tracer, c, msg, child_of=span)
+                    trace_send(tracer, c, msg, follows_from=span)
                     span.finish()
                     result = True
             return result
@@ -138,3 +138,5 @@ opts, args = parser.parse_args()
 try:
     Container(Broker(opts.address)).run()
 except KeyboardInterrupt: pass
+
+fini_tracer(tracer)
