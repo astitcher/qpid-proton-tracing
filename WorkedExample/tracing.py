@@ -18,13 +18,16 @@
 #
 
 import functools
+import time
 
 import opentracing
 import jaeger_client
-from opentracing import follows_from
+from opentracing import follows_from as follows_from
 from opentracing.ext import tags
 from opentracing.propagation import Format
 
+# Alias so we can use the name as a kw parameter
+tfollows_from = follows_from
 
 def init_tracer(service_name):
     config = jaeger_client.Config(
@@ -39,6 +42,13 @@ def init_tracer(service_name):
     )
 
     return config.initialize_tracer()
+
+# A nasty hack to ensure enough time for the tracing data to be flushed
+def fini_tracer(tracer):
+    time.sleep(2)
+    c = tracer.close()
+    while not c.done:
+        time.sleep(0.5)
 
 def trace_consumer_handler(tracer, operation):
     def decorator(fn):
@@ -60,7 +70,7 @@ def trace_consumer_handler(tracer, operation):
         return wrapper
     return decorator
 
-def trace_send(tracer, sender, msg, child_of=None):
+def trace_send(tracer, sender, msg, child_of=None, follows_from=None):
     connection = sender.connection
     span_tags = {
         tags.SPAN_KIND: tags.SPAN_KIND_PRODUCER,
@@ -68,7 +78,12 @@ def trace_send(tracer, sender, msg, child_of=None):
         tags.PEER_ADDRESS: connection.connected_address,
         tags.PEER_HOSTNAME: connection.hostname
     }
-    span = tracer.start_span('amqp-delivery-send', tags=span_tags, child_of=child_of)
+    if child_of is not None:
+        span = tracer.start_span('amqp-delivery-send', tags=span_tags, child_of=child_of, ignore_active_span=True)
+    elif follows_from is not None:
+        span = tracer.start_span('amqp-delivery-send', tags=span_tags, references=[tfollows_from(follows_from)], ignore_active_span=True)
+    else:
+        span = tracer.start_span('amqp-delivery-send', tags=span_tags)
     headers = {}
     tracer.inject(span, Format.TEXT_MAP, headers)
     msg.annotations = headers
