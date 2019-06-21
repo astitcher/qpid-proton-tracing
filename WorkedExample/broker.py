@@ -42,7 +42,7 @@ class Queue(object):
         return len(self.consumers) == 0 and (self.dynamic or self.queue.count == 0)
 
     def publish(self, message):
-        span = tracer.start_span('queue-message', ignore_active_span=True, references=[follows_from(tracer.active_span)])
+        span = tracer.start_span('queue-message', ignore_active_span=True, references=follows_from(tracer.active_span.context))
         message.span = span
         self.queue.append(message)
         self.dispatch()

@@ -81,7 +81,7 @@ def trace_send(tracer, sender, msg, child_of=None, follows_from=None):
     if child_of is not None:
         span = tracer.start_span('amqp-delivery-send', tags=span_tags, child_of=child_of, ignore_active_span=True)
     elif follows_from is not None:
-        span = tracer.start_span('amqp-delivery-send', tags=span_tags, references=[tfollows_from(follows_from)], ignore_active_span=True)
+        span = tracer.start_span('amqp-delivery-send', tags=span_tags, references=[tfollows_from(follows_from.context)], ignore_active_span=True)
     else:
         span = tracer.start_span('amqp-delivery-send', tags=span_tags)
     headers = {}

@@ -8,8 +8,8 @@ pylint = "*"
 
 [packages]
 python-qpid-proton = "*"
-opentracing = "<3,>=2"
-jaeger-client = {editable = true,git = "https://github.com/yurishkuro/jaeger-client-python.git",ref = "d631596415cb549a4e8314cc25d6c53fab710528"}
+opentracing = "*"
+jaeger-client = "*"
 futures = "*"
 
 [requires]
