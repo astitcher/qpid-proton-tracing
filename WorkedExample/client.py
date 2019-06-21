@@ -52,7 +52,7 @@ class Client(MessagingHandler):
         if event.receiver == self.receiver:
             self.next_request()
 
-    @trace_consumer_handler(tracer, 'client-process-reply')
+    @trace_consumer_handler(tracer)
     def on_message(self, event):
         self.current_span.finish()
         print("%s => %s" % (self.requests.pop(0), event.message.body))

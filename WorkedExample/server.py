@@ -41,7 +41,7 @@ class Server(MessagingHandler):
         self.receiver = event.container.create_receiver(self.conn, self.address)
         self.server = self.container.create_sender(self.conn, None)
 
-    @trace_consumer_handler(tracer, 'server-process-message')
+    @trace_consumer_handler(tracer)
     def on_message(self, event):
         print("Received", event.message)
         trace_send(tracer, self.server,

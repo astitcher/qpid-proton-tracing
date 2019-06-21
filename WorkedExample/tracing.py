@@ -50,7 +50,7 @@ def fini_tracer(tracer):
     while not c.done:
         time.sleep(0.5)
 
-def trace_consumer_handler(tracer, operation):
+def trace_consumer_handler(tracer):
     def decorator(fn):
         @functools.wraps(fn)
         def wrapper(self, event):
@@ -62,10 +62,12 @@ def trace_consumer_handler(tracer, operation):
                 tags.SPAN_KIND: tags.SPAN_KIND_CONSUMER,
                 tags.MESSAGE_BUS_DESTINATION: receiver.source.address,
                 tags.PEER_ADDRESS: connection.connected_address,
-                tags.PEER_HOSTNAME: connection.hostname
+                tags.PEER_HOSTNAME: connection.hostname,
+                'inserted.automatically': 'message-tracing'
             }
-            with tracer.start_active_span(operation, child_of=span_ctx, tags=span_tags):
+            with tracer.start_active_span('amqp-delivery-receive', child_of=span_ctx, tags=span_tags):
                 r = fn(self, event)
+
             return r
         return wrapper
     return decorator
@@ -76,7 +78,8 @@ def trace_send(tracer, sender, msg, child_of=None, follows_from=None):
         tags.SPAN_KIND: tags.SPAN_KIND_PRODUCER,
         tags.MESSAGE_BUS_DESTINATION: sender.target.address,
         tags.PEER_ADDRESS: connection.connected_address,
-        tags.PEER_HOSTNAME: connection.hostname
+        tags.PEER_HOSTNAME: connection.hostname,
+        'inserted.automatically': 'message-tracing'
     }
     if child_of is not None:
         span = tracer.start_span('amqp-delivery-send', tags=span_tags, child_of=child_of, ignore_active_span=True)

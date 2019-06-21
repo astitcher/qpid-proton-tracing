@@ -37,7 +37,7 @@ class Recv(MessagingHandler):
     def on_start(self, event):
         self.acceptor = event.container.listen(self.url)
 
-    @trace_consumer_handler(tracer, 'amqp-delivery-receive')
+    @trace_consumer_handler(tracer)
     def on_message(self, event):
         if event.message.id and event.message.id < self.received:
             # ignore duplicate message

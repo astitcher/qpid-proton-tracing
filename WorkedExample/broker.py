@@ -123,7 +123,7 @@ class Broker(MessagingHandler):
     def on_settled(self, event):
         trace_settle(tracer, event.delivery)
 
-    @trace_consumer_handler(tracer, 'amqp-delivery-receive')
+    @trace_consumer_handler(tracer)
     def on_message(self, event):
         address = event.link.target.address
         if address is None:
