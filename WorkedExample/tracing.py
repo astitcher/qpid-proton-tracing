@@ -96,4 +96,7 @@ def trace_send(tracer, sender, msg, child_of=None, follows_from=None):
     return delivery
 
 def trace_settle(tracer, delivery):
-    delivery.span.finish()
+    state = delivery.remote_state
+    span = delivery.span
+    span.log_kv({'event': 'delivery settled', 'state': state.name})
+    span.finish()
