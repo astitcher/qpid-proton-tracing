@@ -33,7 +33,12 @@ class Client(MessagingHandler):
         super(Client, self).__init__()
         self.url = url
         self.requests = requests
-        self.current_span = None
+        self.spans = []
+        for r in requests:
+            tags = { 'request': r}
+            span = tracer.start_span('request', ignore_active_span=True, tags=tags)
+            span.log_kv({'event': 'request_created'})
+            self.spans.append(span)
 
     def on_start(self, event):
         self.sender = event.container.create_sender(self.url)
@@ -41,10 +46,12 @@ class Client(MessagingHandler):
 
     def next_request(self):
         if self.receiver.remote_source.address:
-            self.current_span = tracer.start_span('process-request', ignore_active_span=True)
-            req = Message(reply_to=self.receiver.remote_source.address, body=self.requests[0])
-            with tracer.scope_manager.activate(self.current_span, False):
-                trace_send(tracer, self.sender, req)
+            req = self.requests[0]
+            span = self.spans[0]
+            with tracer.scope_manager.activate(span, False):
+                span.log_kv({'event': 'request_sent'})
+                msg = Message(reply_to=self.receiver.remote_source.address, body=req)
+                trace_send(tracer, self.sender, msg)
 
     def on_settled(self, event):
         trace_settle(tracer, event.delivery)
@@ -55,8 +62,12 @@ class Client(MessagingHandler):
 
     @trace_consumer_handler(tracer)
     def on_message(self, event):
-        self.current_span.finish()
-        print("%s => %s" % (self.requests.pop(0), event.message.body))
+        reply = event.message.body
+        req = self.requests.pop(0)
+        span = self.spans.pop(0)
+        span.log_kv({'event': 'reply-received', 'result': reply})
+        span.finish()
+        print("%s => %s" % (req, reply))
         if self.requests:
             self.next_request()
         else:

@@ -44,9 +44,13 @@ class Server(MessagingHandler):
     @trace_consumer_handler(tracer)
     def on_message(self, event):
         print("Received", event.message)
-        with tracer.start_active_span('process-request'):
-            msg = Message(address=event.message.reply_to, body=event.message.body.upper(),
+        request = event.message.body
+        tags = {'request': request}
+        with tracer.start_active_span('process-request', tags = tags) as scope:
+            response = event.message.body.upper()
+            msg = Message(address=event.message.reply_to, body=response,
                           correlation_id=event.message.correlation_id)
+            scope.span.log_kv({'result': response})
         trace_send(tracer, self.server, msg)
 
     def on_settled(self, event):
