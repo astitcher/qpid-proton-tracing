@@ -42,9 +42,10 @@ class Queue(object):
         return len(self.consumers) == 0 and (self.dynamic or self.queue.count == 0)
 
     def publish(self, message):
-        span = tracer.start_span('queue-message', ignore_active_span=True, references=follows_from(tracer.active_span.context))
-        message.span = span
-        self.queue.append(message)
+        span = tracer.start_span('queue-message')
+        message.qspan = span
+        with tracer.scope_manager.activate(span, True):
+            self.queue.append(message)
         self.dispatch()
 
     def dispatch(self, consumer=None):
@@ -60,10 +61,9 @@ class Queue(object):
             for c in consumers:
                 if c.credit:
                     msg = self.queue.popleft()
-                    span = msg.span
-                    trace_send(tracer, c, msg, follows_from=span)
-                    span.finish()
-                    result = True
+                    with tracer.start_active_span('dequeue-message', ignore_active_span=True, references=follows_from(msg.qspan.context)):
+                        trace_send(tracer, c, msg)
+                        result = True
             return result
         except IndexError: # no more messages
             return False

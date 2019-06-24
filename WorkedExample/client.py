@@ -41,9 +41,10 @@ class Client(MessagingHandler):
 
     def next_request(self):
         if self.receiver.remote_source.address:
-            self.current_span = tracer.start_span('client-process-request', ignore_active_span=True)
+            self.current_span = tracer.start_span('process-request', ignore_active_span=True)
             req = Message(reply_to=self.receiver.remote_source.address, body=self.requests[0])
-            trace_send(tracer, self.sender, req, child_of=self.current_span)
+            with tracer.scope_manager.activate(self.current_span, False):
+                trace_send(tracer, self.sender, req)
 
     def on_settled(self, event):
         trace_settle(tracer, event.delivery)

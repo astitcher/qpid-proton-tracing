@@ -72,7 +72,7 @@ def trace_consumer_handler(tracer):
         return wrapper
     return decorator
 
-def trace_send(tracer, sender, msg, child_of=None, follows_from=None):
+def trace_send(tracer, sender, msg):
     connection = sender.connection
     span_tags = {
         tags.SPAN_KIND: tags.SPAN_KIND_PRODUCER,
@@ -81,12 +81,7 @@ def trace_send(tracer, sender, msg, child_of=None, follows_from=None):
         tags.PEER_HOSTNAME: connection.hostname,
         'inserted.automatically': 'message-tracing'
     }
-    if child_of is not None:
-        span = tracer.start_span('amqp-delivery-send', tags=span_tags, child_of=child_of, ignore_active_span=True)
-    elif follows_from is not None:
-        span = tracer.start_span('amqp-delivery-send', tags=span_tags, references=[tfollows_from(follows_from.context)], ignore_active_span=True)
-    else:
-        span = tracer.start_span('amqp-delivery-send', tags=span_tags)
+    span = tracer.start_span('amqp-delivery-send', tags=span_tags)
     headers = {}
     tracer.inject(span, Format.TEXT_MAP, headers)
     msg.annotations = headers
