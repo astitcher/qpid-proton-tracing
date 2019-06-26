@@ -3,3 +3,5 @@ INSTALL
 Dapper-google.pdf
 .vscode
 .venv
+__pycache__
+Pipfile.lock
