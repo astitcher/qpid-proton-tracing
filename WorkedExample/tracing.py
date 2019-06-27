@@ -27,7 +27,12 @@ from opentracing.ext import tags
 from opentracing.propagation import Format
 
 # Alias so we can use the name as a kw parameter
-tfollows_from = follows_from
+_tfollows_from = follows_from
+
+_tracer = None
+
+def get_tracer():
+    return _tracer
 
 def init_tracer(service_name):
     config = jaeger_client.Config(
@@ -40,24 +45,24 @@ def init_tracer(service_name):
         },
         service_name=service_name,
     )
-
-    return config.initialize_tracer()
+    global _tracer
+    _tracer = config.initialize_tracer()
 
 # A nasty hack to ensure enough time for the tracing data to be flushed
-def fini_tracer(tracer):
+def fini_tracer():
     time.sleep(2)
-    c = tracer.close()
+    c = _tracer.close()
     while not c.done:
         time.sleep(0.5)
 
-def trace_consumer_handler(tracer):
+def trace_consumer_handler():
     def decorator(fn):
         @functools.wraps(fn)
         def wrapper(self, event):
             message = event.message
             receiver = event.receiver
             connection = event.connection
-            span_ctx = tracer.extract(Format.TEXT_MAP, message.annotations)
+            span_ctx = _tracer.extract(Format.TEXT_MAP, message.annotations)
             span_tags = {
                 tags.SPAN_KIND: tags.SPAN_KIND_CONSUMER,
                 tags.MESSAGE_BUS_DESTINATION: receiver.source.address,
@@ -65,14 +70,14 @@ def trace_consumer_handler(tracer):
                 tags.PEER_HOSTNAME: connection.hostname,
                 'inserted.automatically': 'message-tracing'
             }
-            with tracer.start_active_span('amqp-delivery-receive', child_of=span_ctx, tags=span_tags):
+            with _tracer.start_active_span('amqp-delivery-receive', child_of=span_ctx, tags=span_tags):
                 r = fn(self, event)
 
             return r
         return wrapper
     return decorator
 
-def trace_send(tracer, sender, msg):
+def trace_send(sender, msg):
     connection = sender.connection
     span_tags = {
         tags.SPAN_KIND: tags.SPAN_KIND_PRODUCER,
@@ -81,16 +86,16 @@ def trace_send(tracer, sender, msg):
         tags.PEER_HOSTNAME: connection.hostname,
         'inserted.automatically': 'message-tracing'
     }
-    span = tracer.start_span('amqp-delivery-send', tags=span_tags)
+    span = _tracer.start_span('amqp-delivery-send', tags=span_tags)
     headers = {}
-    tracer.inject(span, Format.TEXT_MAP, headers)
+    _tracer.inject(span, Format.TEXT_MAP, headers)
     msg.annotations = headers
     delivery = sender.send(msg)
     delivery.span = span
     span.set_tag('delivery-tag', delivery.tag)
     return delivery
 
-def trace_settle(tracer, delivery):
+def trace_settle(delivery):
     state = delivery.remote_state
     span = delivery.span
     span.log_kv({'event': 'delivery settled', 'state': state.name})

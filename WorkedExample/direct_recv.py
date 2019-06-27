@@ -25,7 +25,7 @@ from proton.reactor import Container
 
 from tracing import init_tracer, fini_tracer, trace_consumer_handler
 
-tracer = init_tracer('direct_recv')
+init_tracer('direct_recv')
 
 class Recv(MessagingHandler):
     def __init__(self, url, count):
@@ -37,7 +37,7 @@ class Recv(MessagingHandler):
     def on_start(self, event):
         self.acceptor = event.container.listen(self.url)
 
-    @trace_consumer_handler(tracer)
+    @trace_consumer_handler()
     def on_message(self, event):
         if event.message.id and event.message.id < self.received:
             # ignore duplicate message
@@ -61,4 +61,4 @@ try:
     Container(Recv(opts.address, opts.messages)).run()
 except KeyboardInterrupt: pass
 
-fini_tracer(tracer)
+fini_tracer()

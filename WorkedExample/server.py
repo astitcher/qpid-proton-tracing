@@ -24,9 +24,10 @@ from proton import Message, Url
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
 
-from tracing import init_tracer, fini_tracer, trace_consumer_handler, trace_send, trace_settle
+from tracing import get_tracer, init_tracer, fini_tracer, trace_consumer_handler, trace_send, trace_settle
 
-tracer = init_tracer('server')
+init_tracer('server')
+tracer = get_tracer()
 
 class Server(MessagingHandler):
     def __init__(self, url, address):
@@ -41,7 +42,7 @@ class Server(MessagingHandler):
         self.receiver = event.container.create_receiver(self.conn, self.address)
         self.server = self.container.create_sender(self.conn, None)
 
-    @trace_consumer_handler(tracer)
+    @trace_consumer_handler()
     def on_message(self, event):
         print("Received", event.message)
         request = event.message.body
@@ -51,10 +52,10 @@ class Server(MessagingHandler):
             msg = Message(address=event.message.reply_to, body=response,
                           correlation_id=event.message.correlation_id)
             scope.span.log_kv({'result': response})
-        trace_send(tracer, self.server, msg)
+        trace_send(self.server, msg)
 
     def on_settled(self, event):
-        trace_settle(tracer, event.delivery)
+        trace_settle(event.delivery)
 
 parser = optparse.OptionParser(usage="usage: %prog [options]")
 parser.add_option("-a", "--address", default="localhost:5672/examples",
@@ -67,4 +68,4 @@ try:
     Container(Server(url, url.path)).run()
 except KeyboardInterrupt: pass
 
-fini_tracer(tracer)
+fini_tracer()

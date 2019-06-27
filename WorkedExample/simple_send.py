@@ -27,7 +27,7 @@ from proton.reactor import Container
 
 from tracing import init_tracer, fini_tracer, trace_send, trace_settle
 
-tracer = init_tracer('simple-sender')
+init_tracer('simple-sender')
 
 class Send(MessagingHandler):
     def __init__(self, url, messages):
@@ -43,12 +43,12 @@ class Send(MessagingHandler):
     def on_sendable(self, event):
         while event.sender.credit and self.sent < self.total:
             msg = Message(id=(self.sent+1), body={'sequence':(self.sent+1)})
-            trace_send(tracer, event.sender, msg)
+            trace_send(event.sender, msg)
             self.sent += 1
 
 
     def on_accepted(self, event):
-        trace_settle(tracer, event.delivery)
+        trace_settle(event.delivery)
         self.confirmed += 1
         if self.confirmed == self.total:
             print("all messages confirmed")
@@ -70,4 +70,4 @@ try:
 
 except KeyboardInterrupt: pass
 
-fini_tracer(tracer)
+fini_tracer()

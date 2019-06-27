@@ -24,9 +24,10 @@ from proton import Message
 from proton.handlers import MessagingHandler
 from proton.reactor import Container, DynamicNodeProperties
 
-from tracing import init_tracer, fini_tracer, trace_consumer_handler, trace_send, trace_settle
+from tracing import get_tracer, init_tracer, fini_tracer, trace_consumer_handler, trace_send, trace_settle
 
-tracer = init_tracer('client')
+init_tracer('client')
+tracer = get_tracer()
 
 class Client(MessagingHandler):
     def __init__(self, url, requests):
@@ -51,16 +52,16 @@ class Client(MessagingHandler):
             with tracer.scope_manager.activate(span, False):
                 span.log_kv({'event': 'request_sent'})
                 msg = Message(reply_to=self.receiver.remote_source.address, body=req)
-                trace_send(tracer, self.sender, msg)
+                trace_send(self.sender, msg)
 
     def on_settled(self, event):
-        trace_settle(tracer, event.delivery)
+        trace_settle(event.delivery)
 
     def on_link_opened(self, event):
         if event.receiver == self.receiver:
             self.next_request()
 
-    @trace_consumer_handler(tracer)
+    @trace_consumer_handler()
     def on_message(self, event):
         reply = event.message.body
         req = self.requests.pop(0)
@@ -86,4 +87,4 @@ opts, args = parser.parse_args()
 
 Container(Client(opts.address, args or REQUESTS)).run()
 
-fini_tracer(tracer)
+fini_tracer()
