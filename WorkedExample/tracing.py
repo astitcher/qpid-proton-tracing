@@ -26,6 +26,8 @@ from opentracing import follows_from as follows_from
 from opentracing.ext import tags
 from opentracing.propagation import Format
 
+from  proton import symbol
+
 # Alias so we can use the name as a kw parameter
 _tfollows_from = follows_from
 
@@ -33,6 +35,15 @@ _tracer = None
 
 def get_tracer():
     return _tracer
+
+# Message annotations must have symbols or ulong keys
+# So convert string keys coming from tracer.inject to symbols
+def _make_annotation(headers):
+    r = {}
+    for k, v in headers.items():
+        r[symbol(k)] = v
+    return r
+
 
 def init_tracer(service_name):
     config = jaeger_client.Config(
@@ -62,7 +73,10 @@ def trace_consumer_handler():
             message = event.message
             receiver = event.receiver
             connection = event.connection
-            span_ctx = _tracer.extract(Format.TEXT_MAP, message.annotations)
+            headers = message.annotations
+            # Don't need to convert symbols to strings - they should be
+            # automatically treated like strings anyway
+            span_ctx = _tracer.extract(Format.TEXT_MAP, headers)
             span_tags = {
                 tags.SPAN_KIND: tags.SPAN_KIND_CONSUMER,
                 tags.MESSAGE_BUS_DESTINATION: receiver.source.address,
@@ -89,6 +103,7 @@ def trace_send(sender, msg):
     span = _tracer.start_span('amqp-delivery-send', tags=span_tags)
     headers = {}
     _tracer.inject(span, Format.TEXT_MAP, headers)
+    headers = _make_annotation(headers)
     msg.annotations = headers
     delivery = sender.send(msg)
     delivery.span = span
