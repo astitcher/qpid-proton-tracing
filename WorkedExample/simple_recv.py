@@ -20,12 +20,11 @@
 
 from __future__ import print_function
 import optparse
+
+from tracing import init_tracer
+
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
-
-from tracing import init_tracer, fini_tracer, trace_consumer_handler
-
-init_tracer('simple-receiver')
 
 class Recv(MessagingHandler):
     def __init__(self, url, count):
@@ -37,7 +36,6 @@ class Recv(MessagingHandler):
     def on_start(self, event):
         event.container.create_receiver(self.url)
 
-    @trace_consumer_handler()
     def on_message(self, event):
         if event.message.id and event.message.id < self.received:
             # ignore duplicate message
@@ -59,5 +57,3 @@ opts, args = parser.parse_args()
 try:
     Container(Recv(opts.address, opts.messages)).run()
 except KeyboardInterrupt: pass
-
-fini_tracer()

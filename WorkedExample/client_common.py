@@ -20,11 +20,11 @@
 from __future__ import print_function, unicode_literals
 import uuid
 
+from opentracing import global_tracer
+
 from proton import Message
 from proton.handlers import MessagingHandler
 from proton.reactor import Container, DynamicNodeProperties
-
-from tracing import get_tracer, trace_consumer_handler, trace_send, trace_settle
 
 class Client(MessagingHandler):
     def __init__(self, url, requests):
@@ -37,7 +37,7 @@ class Client(MessagingHandler):
 
     def add_request(self, r):
         tags = { 'request': r}
-        span = get_tracer().start_span('request', tags=tags)
+        span = global_tracer().start_span('request', tags=tags)
         id = uuid.uuid4()
         self.requests_queued.append( (id, r, span) )
 
@@ -51,21 +51,17 @@ class Client(MessagingHandler):
     def next_request(self):
         if self.receiver.remote_source.address:
             (id, req, span) = self.requests_queued.pop(0)
-            with get_tracer().scope_manager.activate(span, False):
+            with global_tracer().scope_manager.activate(span, False):
                 span.log_kv({'event': 'request-sent'})
                 msg = Message(reply_to=self.receiver.remote_source.address, correlation_id=id, body=req)
-                trace_send(self.sender, msg)
+                self.sender.send(msg)
                 self.requests_outstanding[id] = (req, span)
-
-    def on_settled(self, event):
-        trace_settle(event.delivery)
 
     def on_link_opened(self, event):
         if event.receiver == self.receiver:
             while len(self.requests_queued) > 0:
                 self.next_request()
 
-    @trace_consumer_handler()
     def on_message(self, event):
         id = event.message.correlation_id
         reply = event.message.body

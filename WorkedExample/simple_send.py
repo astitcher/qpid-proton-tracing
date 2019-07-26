@@ -21,13 +21,11 @@
 from __future__ import print_function, unicode_literals
 import optparse
 
+from tracing import init_tracer
+
 from proton import Message
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
-
-from tracing import init_tracer, fini_tracer, trace_send, trace_settle
-
-init_tracer('simple-sender')
 
 class Send(MessagingHandler):
     def __init__(self, url, messages):
@@ -43,12 +41,10 @@ class Send(MessagingHandler):
     def on_sendable(self, event):
         while event.sender.credit and self.sent < self.total:
             msg = Message(id=(self.sent+1), body={'sequence':(self.sent+1)})
-            trace_send(event.sender, msg)
+            event.sender.send(msg)
             self.sent += 1
 
-
     def on_accepted(self, event):
-        trace_settle(event.delivery)
         self.confirmed += 1
         if self.confirmed == self.total:
             print("all messages confirmed")
@@ -69,5 +65,3 @@ try:
     Container(Send(opts.address, opts.messages)).run()
 
 except KeyboardInterrupt: pass
-
-fini_tracer()

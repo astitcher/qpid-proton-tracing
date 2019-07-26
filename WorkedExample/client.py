@@ -18,12 +18,12 @@
 # under the License.
 #
 import optparse
+from opentracing import tags
 
 from client_common import Client, Container
-from tracing import get_tracer, init_tracer, fini_tracer
+from tracing import init_tracer
 
-init_tracer('client')
-tracer = get_tracer()
+tracer = init_tracer('client')
 
 REQUESTS= ["Twas brillig, and the slithy toves",
            "Did gire and gymble in the wabe.",
@@ -36,7 +36,7 @@ parser.add_option("-a", "--address", default="localhost:5672/examples",
                   help="address to which messages are sent (default %default)")
 opts, args = parser.parse_args()
 
-with tracer.start_active_span('client-requests'):
+with tracer.start_active_span('client-requests') as context:
+    # Force trace for this operation
+    context.span.set_tag(tags.SAMPLING_PRIORITY, 1)
     Container(Client(opts.address, args or REQUESTS)).run()
-
-fini_tracer()

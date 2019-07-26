@@ -17,66 +17,69 @@
 # under the License.
 #
 
+import atexit
 import functools
+import os
+import sys
 import time
+import weakref
 
 import opentracing
 import jaeger_client
-from opentracing import follows_from as follows_from
 from opentracing.ext import tags
 from opentracing.propagation import Format
 
-from  proton import symbol
-
-# Alias so we can use the name as a kw parameter
-_tfollows_from = follows_from
+import proton
+from proton import Sender as ProtonSender
+import proton.handlers
+from proton.handlers import MessagingHandler as ProtonMessagingHandler
 
 _tracer = None
 
 def get_tracer():
+    global _tracer
+    if _tracer is None:
+        _tracer = init_tracer(os.path.basename(sys.argv[0]))
     return _tracer
+
+def _fini_tracer():
+    time.sleep(2)
+    c = opentracing.global_tracer().close()
+    while not c.done:
+        time.sleep(0.5)
+
+def init_tracer(service_name):
+    global _tracer
+    config = jaeger_client.Config(
+        config={},
+        service_name=service_name,
+        validate=True
+    )
+    _tracer = config.initialize_tracer()
+    # A nasty hack to ensure enough time for the tracing data to be flushed
+    atexit.register(_fini_tracer)
+    return _tracer
+
 
 # Message annotations must have symbols or ulong keys
 # So convert string keys coming from tracer.inject to symbols
 def _make_annotation(headers):
     r = {}
     for k, v in headers.items():
-        r[symbol(k)] = v
+        r[proton.symbol(k)] = v
     return r
 
-
-def init_tracer(service_name):
-    config = jaeger_client.Config(
-        config={
-            'sampler': {
-                'type': 'const',
-                'param': 1,
-            },
-            'logging': True,
-        },
-        service_name=service_name,
-    )
-    global _tracer
-    _tracer = config.initialize_tracer()
-
-# A nasty hack to ensure enough time for the tracing data to be flushed
-def fini_tracer():
-    time.sleep(2)
-    c = _tracer.close()
-    while not c.done:
-        time.sleep(0.5)
-
-def trace_consumer_handler():
-    def decorator(fn):
-        @functools.wraps(fn)
-        def wrapper(self, event):
+class IncomingMessageHandler(proton.handlers.IncomingMessageHandler):
+    def on_message(self, event):
+        if self.delegate is not None:
+            tracer = get_tracer()
             message = event.message
             receiver = event.receiver
             connection = event.connection
             headers = message.annotations
             # Don't need to convert symbols to strings - they should be
             # automatically treated like strings anyway
-            span_ctx = _tracer.extract(Format.TEXT_MAP, headers)
+            span_ctx = tracer.extract(Format.TEXT_MAP, headers)
             span_tags = {
                 tags.SPAN_KIND: tags.SPAN_KIND_CONSUMER,
                 tags.MESSAGE_BUS_DESTINATION: receiver.source.address,
@@ -84,34 +87,52 @@ def trace_consumer_handler():
                 tags.PEER_HOSTNAME: connection.hostname,
                 'inserted.automatically': 'message-tracing'
             }
-            with _tracer.start_active_span('amqp-delivery-receive', child_of=span_ctx, tags=span_tags):
-                r = fn(self, event)
+            with tracer.start_active_span('amqp-delivery-receive', child_of=span_ctx, tags=span_tags):
+                proton._events._dispatch(self.delegate, 'on_message', event)
 
-            return r
-        return wrapper
-    return decorator
+class OutgoingMessageHandler(proton.handlers.OutgoingMessageHandler):
+    def on_settled(self, event):
+        if self.delegate is not None:
+            delivery = event.delivery
+            state = delivery.remote_state
+            span = delivery.span
+            span.log_kv({'event': 'delivery settled', 'state': state.name})
+            span.finish()
+            proton._events._dispatch(self.delegate, 'on_settled', event)
 
-def trace_send(sender, msg):
-    connection = sender.connection
-    span_tags = {
-        tags.SPAN_KIND: tags.SPAN_KIND_PRODUCER,
-        tags.MESSAGE_BUS_DESTINATION: sender.target.address,
-        tags.PEER_ADDRESS: connection.connected_address,
-        tags.PEER_HOSTNAME: connection.hostname,
-        'inserted.automatically': 'message-tracing'
-    }
-    span = _tracer.start_span('amqp-delivery-send', tags=span_tags)
-    headers = {}
-    _tracer.inject(span, Format.TEXT_MAP, headers)
-    headers = _make_annotation(headers)
-    msg.annotations = headers
-    delivery = sender.send(msg)
-    delivery.span = span
-    span.set_tag('delivery-tag', delivery.tag)
-    return delivery
+class MessagingHandler(ProtonMessagingHandler):
+    def __init__(self, prefetch=10, auto_accept=True, auto_settle=True, peer_close_is_error=False):
+        self.handlers = []
+        if prefetch:
+            self.handlers.append(proton.handlers.FlowController(prefetch))
+        self.handlers.append(proton.handlers.EndpointStateHandler(peer_close_is_error, weakref.proxy(self)))
+        self.handlers.append(IncomingMessageHandler(auto_accept, weakref.proxy(self)))
+        self.handlers.append(OutgoingMessageHandler(auto_settle, weakref.proxy(self)))
+        self.fatal_conditions = ["amqp:unauthorized-access"]
 
-def trace_settle(delivery):
-    state = delivery.remote_state
-    span = delivery.span
-    span.log_kv({'event': 'delivery settled', 'state': state.name})
-    span.finish()
+class Sender(ProtonSender):
+    def send(self, msg):
+        tracer = get_tracer()
+        connection = self.connection
+        span_tags = {
+            tags.SPAN_KIND: tags.SPAN_KIND_PRODUCER,
+            tags.MESSAGE_BUS_DESTINATION: self.target.address,
+            tags.PEER_ADDRESS: connection.connected_address,
+            tags.PEER_HOSTNAME: connection.hostname,
+            'inserted.automatically': 'message-tracing'
+        }
+        span = tracer.start_span('amqp-delivery-send', tags=span_tags)
+        headers = {}
+        tracer.inject(span, Format.TEXT_MAP, headers)
+        headers = _make_annotation(headers)
+        msg.annotations = headers
+        delivery = ProtonSender.send(self, msg)
+        delivery.span = span
+        span.set_tag('delivery-tag', delivery.tag)
+        return delivery
+
+# Monkey patch proton for tracing (need to patch both internal and external names)
+proton._handlers.MessagingHandler = MessagingHandler
+proton._endpoints.Sender = Sender
+proton.handlers.MessagingHandler = MessagingHandler
+proton.Sender = Sender

@@ -19,14 +19,16 @@
 #
 
 import collections, optparse, uuid
+
+from opentracing import follows_from
+
+from tracing import init_tracer
+
 from proton import Endpoint
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
 
-from tracing import get_tracer, init_tracer, fini_tracer, trace_consumer_handler, trace_send, trace_settle, follows_from
-
-init_tracer('broker')
-tracer = get_tracer()
+tracer = init_tracer('broker')
 
 class Queue(object):
     def __init__(self, dynamic=False):
@@ -63,7 +65,7 @@ class Queue(object):
                 if c.credit:
                     msg = self.queue.popleft()
                     with tracer.start_active_span('dequeue-message', ignore_active_span=True, references=follows_from(msg.qspan.context)):
-                        trace_send(c, msg)
+                        c.send(msg)
                         result = True
             return result
         except IndexError: # no more messages
@@ -121,10 +123,6 @@ class Broker(MessagingHandler):
     def on_sendable(self, event):
         self._queue(event.link.source.address).dispatch(event.link)
 
-    def on_settled(self, event):
-        trace_settle(event.delivery)
-
-    @trace_consumer_handler()
     def on_message(self, event):
         address = event.link.target.address
         if address is None:
@@ -139,5 +137,3 @@ opts, args = parser.parse_args()
 try:
     Container(Broker(opts.address)).run()
 except KeyboardInterrupt: pass
-
-fini_tracer()

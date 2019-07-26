@@ -20,14 +20,14 @@
 
 from __future__ import print_function
 import optparse
+
+from tracing import init_tracer
+
 from proton import Message, Url
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
 
-from tracing import get_tracer, init_tracer, fini_tracer, trace_consumer_handler, trace_send, trace_settle
-
-init_tracer('server')
-tracer = get_tracer()
+tracer = init_tracer('server')
 
 class Server(MessagingHandler):
     def __init__(self, url, address):
@@ -42,7 +42,6 @@ class Server(MessagingHandler):
         self.receiver = event.container.create_receiver(self.conn, self.address)
         self.server = self.container.create_sender(self.conn, None)
 
-    @trace_consumer_handler()
     def on_message(self, event):
         print("Received", event.message)
         request = event.message.body
@@ -52,10 +51,7 @@ class Server(MessagingHandler):
             msg = Message(address=event.message.reply_to, body=response,
                           correlation_id=event.message.correlation_id)
             scope.span.log_kv({'result': response})
-        trace_send(self.server, msg)
-
-    def on_settled(self, event):
-        trace_settle(event.delivery)
+        self.server.send(msg)
 
 parser = optparse.OptionParser(usage="usage: %prog [options]")
 parser.add_option("-a", "--address", default="localhost:5672/examples",
@@ -67,5 +63,3 @@ url = Url(opts.address)
 try:
     Container(Server(url, url.path)).run()
 except KeyboardInterrupt: pass
-
-fini_tracer()
