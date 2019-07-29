@@ -21,11 +21,11 @@
 from __future__ import print_function, unicode_literals
 import optparse
 
-from tracing import init_tracer
-
 from proton import Message
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
+
+import tracing
 
 class Send(MessagingHandler):
     def __init__(self, url, messages):

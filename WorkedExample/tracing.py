@@ -31,8 +31,10 @@ from opentracing.propagation import Format
 
 import proton
 from proton import Sender as ProtonSender
-import proton.handlers
-from proton.handlers import MessagingHandler as ProtonMessagingHandler
+from proton.handlers import (
+    OutgoingMessageHandler as ProtonOutgoingMessageHandler,
+    IncomingMessageHandler as ProtonIncomingMessageHandler
+)
 
 _tracer = None
 
@@ -69,7 +71,7 @@ def _make_annotation(headers):
         r[proton.symbol(k)] = v
     return r
 
-class IncomingMessageHandler(proton.handlers.IncomingMessageHandler):
+class IncomingMessageHandler(ProtonIncomingMessageHandler):
     def on_message(self, event):
         if self.delegate is not None:
             tracer = get_tracer()
@@ -90,7 +92,7 @@ class IncomingMessageHandler(proton.handlers.IncomingMessageHandler):
             with tracer.start_active_span('amqp-delivery-receive', child_of=span_ctx, tags=span_tags):
                 proton._events._dispatch(self.delegate, 'on_message', event)
 
-class OutgoingMessageHandler(proton.handlers.OutgoingMessageHandler):
+class OutgoingMessageHandler(ProtonOutgoingMessageHandler):
     def on_settled(self, event):
         if self.delegate is not None:
             delivery = event.delivery
@@ -99,16 +101,6 @@ class OutgoingMessageHandler(proton.handlers.OutgoingMessageHandler):
             span.log_kv({'event': 'delivery settled', 'state': state.name})
             span.finish()
             proton._events._dispatch(self.delegate, 'on_settled', event)
-
-class MessagingHandler(ProtonMessagingHandler):
-    def __init__(self, prefetch=10, auto_accept=True, auto_settle=True, peer_close_is_error=False):
-        self.handlers = []
-        if prefetch:
-            self.handlers.append(proton.handlers.FlowController(prefetch))
-        self.handlers.append(proton.handlers.EndpointStateHandler(peer_close_is_error, weakref.proxy(self)))
-        self.handlers.append(IncomingMessageHandler(auto_accept, weakref.proxy(self)))
-        self.handlers.append(OutgoingMessageHandler(auto_settle, weakref.proxy(self)))
-        self.fatal_conditions = ["amqp:unauthorized-access"]
 
 class Sender(ProtonSender):
     def send(self, msg):
@@ -132,7 +124,9 @@ class Sender(ProtonSender):
         return delivery
 
 # Monkey patch proton for tracing (need to patch both internal and external names)
-proton._handlers.MessagingHandler = MessagingHandler
+proton._handlers.IncomingMessageHandler = IncomingMessageHandler
+proton._handlers.OutgoingMessageHandler = OutgoingMessageHandler
 proton._endpoints.Sender = Sender
-proton.handlers.MessagingHandler = MessagingHandler
+proton.handlers.IncomingMessageHandler = IncomingMessageHandler
+proton.handlers.OutgoingMessageHandler = OutgoingMessageHandler
 proton.Sender = Sender

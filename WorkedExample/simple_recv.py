@@ -21,10 +21,10 @@
 from __future__ import print_function
 import optparse
 
-from tracing import init_tracer
-
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
+
+import tracing
 
 class Recv(MessagingHandler):
     def __init__(self, url, count):
