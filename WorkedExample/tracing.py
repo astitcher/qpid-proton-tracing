@@ -24,10 +24,13 @@ import sys
 import time
 import weakref
 
-import opentracing
-import jaeger_client
-from opentracing.ext import tags
-from opentracing.propagation import Format
+try:
+    import opentracing
+    import jaeger_client
+    from opentracing.ext import tags
+    from opentracing.propagation import Format
+except ImportError:
+    raise ImportError('tracing: opentracing and jaeger_client modules need to be installed')
 
 import proton
 from proton import Sender as ProtonSender
@@ -37,6 +40,7 @@ from proton.handlers import (
 )
 
 _tracer = None
+_trace_key = proton.symbol('x-opt-proton-tracestate')
 
 def get_tracer():
     global _tracer
@@ -45,9 +49,9 @@ def get_tracer():
     return _tracer
 
 def _fini_tracer():
-    time.sleep(2)
+    time.sleep(1)
     c = opentracing.global_tracer().close()
-    while not c.done:
+    while not c.done():
         time.sleep(0.5)
 
 def init_tracer(service_name):
@@ -63,14 +67,6 @@ def init_tracer(service_name):
     return _tracer
 
 
-# Message annotations must have symbols or ulong keys
-# So convert string keys coming from tracer.inject to symbols
-def _make_annotation(headers):
-    r = {}
-    for k, v in headers.items():
-        r[proton.symbol(k)] = v
-    return r
-
 class IncomingMessageHandler(ProtonIncomingMessageHandler):
     def on_message(self, event):
         if self.delegate is not None:
@@ -78,19 +74,21 @@ class IncomingMessageHandler(ProtonIncomingMessageHandler):
             message = event.message
             receiver = event.receiver
             connection = event.connection
-            headers = message.annotations
-            # Don't need to convert symbols to strings - they should be
-            # automatically treated like strings anyway
-            span_ctx = tracer.extract(Format.TEXT_MAP, headers)
             span_tags = {
                 tags.SPAN_KIND: tags.SPAN_KIND_CONSUMER,
                 tags.MESSAGE_BUS_DESTINATION: receiver.source.address,
                 tags.PEER_ADDRESS: connection.connected_address,
                 tags.PEER_HOSTNAME: connection.hostname,
-                'inserted.automatically': 'message-tracing'
+                'inserted_by': 'proton-message-tracing'
             }
-            with tracer.start_active_span('amqp-delivery-receive', child_of=span_ctx, tags=span_tags):
-                proton._events._dispatch(self.delegate, 'on_message', event)
+            if message.annotations is not None:
+                headers = message.annotations[_trace_key]
+                span_ctx = tracer.extract(Format.TEXT_MAP, headers)
+                with tracer.start_active_span('amqp-delivery-receive', child_of=span_ctx, tags=span_tags):
+                    proton._events._dispatch(self.delegate, 'on_message', event)
+            else:
+                with tracer.start_active_span('amqp-delivery-receive', ignore_active_span=True, tags=span_tags):
+                    proton._events._dispatch(self.delegate, 'on_message', event)
 
 class OutgoingMessageHandler(ProtonOutgoingMessageHandler):
     def on_settled(self, event):
@@ -98,6 +96,7 @@ class OutgoingMessageHandler(ProtonOutgoingMessageHandler):
             delivery = event.delivery
             state = delivery.remote_state
             span = delivery.span
+            span.set_tag('delivery-terminal-state', state.name)
             span.log_kv({'event': 'delivery settled', 'state': state.name})
             span.finish()
             proton._events._dispatch(self.delegate, 'on_settled', event)
@@ -111,13 +110,15 @@ class Sender(ProtonSender):
             tags.MESSAGE_BUS_DESTINATION: self.target.address,
             tags.PEER_ADDRESS: connection.connected_address,
             tags.PEER_HOSTNAME: connection.hostname,
-            'inserted.automatically': 'message-tracing'
+            'inserted_by': 'proton-message-tracing'
         }
         span = tracer.start_span('amqp-delivery-send', tags=span_tags)
         headers = {}
         tracer.inject(span, Format.TEXT_MAP, headers)
-        headers = _make_annotation(headers)
-        msg.annotations = headers
+        if msg.annotations is None:
+            msg.annotations = { _trace_key: headers }
+        else:
+            msg.annotations[_trace_key] = headers
         delivery = ProtonSender.send(self, msg)
         delivery.span = span
         span.set_tag('delivery-tag', delivery.tag)
