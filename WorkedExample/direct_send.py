@@ -24,8 +24,7 @@ import optparse
 from proton import Message
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
-
-import tracing
+import proton_tracing
 
 class Send(MessagingHandler):
     def __init__(self, url, messages):

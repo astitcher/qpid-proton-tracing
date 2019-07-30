@@ -23,8 +23,7 @@ import optparse
 
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
-
-import tracing
+import proton_tracing
 
 class Recv(MessagingHandler):
     def __init__(self, url, count):

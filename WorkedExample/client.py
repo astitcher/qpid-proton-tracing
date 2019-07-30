@@ -22,7 +22,7 @@ from opentracing import tags
 
 from client_common import Client, Container
 
-from tracing import init_tracer
+from proton_tracing import init_tracer
 
 tracer = init_tracer('client')
 

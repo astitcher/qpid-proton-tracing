@@ -22,11 +22,10 @@ import collections, optparse, uuid
 
 from opentracing import follows_from
 
-from tracing import init_tracer
-
 from proton import Endpoint
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
+from proton_tracing import init_tracer
 
 tracer = init_tracer('broker')
 

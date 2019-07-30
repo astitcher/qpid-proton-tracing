@@ -30,7 +30,7 @@ try:
     from opentracing.ext import tags
     from opentracing.propagation import Format
 except ImportError:
-    raise ImportError('tracing: opentracing and jaeger_client modules need to be installed')
+    raise ImportError('proton tracing requires opentracing and jaeger_client modules')
 
 import proton
 from proton import Sender as ProtonSender

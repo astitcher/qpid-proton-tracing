@@ -24,8 +24,7 @@ import optparse
 from proton import Message, Url
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
-
-from tracing import init_tracer
+from proton_tracing import init_tracer
 
 tracer = init_tracer('server')
 
