@@ -44,9 +44,10 @@ _trace_key = proton.symbol('x-opt-qpid-tracestate')
 
 def get_tracer():
     global _tracer
-    if _tracer is None:
-        _tracer = init_tracer(os.path.basename(sys.argv[0]))
-    return _tracer
+    if _tracer is not None:
+        return _tracer
+    exe = sys.argv[0] if sys.argv[0] else 'interactive-session'
+    return init_tracer(os.path.basename(exe))
 
 def _fini_tracer():
     time.sleep(1)
@@ -56,12 +57,16 @@ def _fini_tracer():
 
 def init_tracer(service_name):
     global _tracer
+    if _tracer is not None:
+        return _tracer
+
     config = jaeger_client.Config(
         config={},
         service_name=service_name,
         validate=True
     )
-    _tracer = config.initialize_tracer()
+    config.initialize_tracer()
+    _tracer = opentracing.global_tracer()
     # A nasty hack to ensure enough time for the tracing data to be flushed
     atexit.register(_fini_tracer)
     return _tracer
