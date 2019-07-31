@@ -40,7 +40,7 @@ from proton.handlers import (
 )
 
 _tracer = None
-_trace_key = proton.symbol('x-opt-proton-tracestate')
+_trace_key = proton.symbol('x-opt-qpid-tracestate')
 
 def get_tracer():
     global _tracer
