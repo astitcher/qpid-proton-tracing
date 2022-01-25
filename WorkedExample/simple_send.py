@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -18,13 +18,14 @@
 # under the License.
 #
 
-from __future__ import print_function, unicode_literals
 import optparse
 
 from proton import Message
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
-import proton_tracing
+
+import proton.tracing
+
 
 class Send(MessagingHandler):
     def __init__(self, url, messages):
@@ -39,7 +40,7 @@ class Send(MessagingHandler):
 
     def on_sendable(self, event):
         while event.sender.credit and self.sent < self.total:
-            msg = Message(id=(self.sent+1), body={'sequence':(self.sent+1)})
+            msg = Message(id=(self.sent + 1), body={'sequence': (self.sent + 1)})
             event.sender.send(msg)
             self.sent += 1
 
@@ -52,6 +53,7 @@ class Send(MessagingHandler):
     def on_disconnected(self, event):
         self.sent = self.confirmed
 
+
 parser = optparse.OptionParser(usage="usage: %prog [options]",
                                description="Send messages to the supplied address.")
 parser.add_option("-a", "--address", default="localhost:5672/examples",
@@ -63,4 +65,5 @@ opts, args = parser.parse_args()
 try:
     Container(Send(opts.address, opts.messages)).run()
 
-except KeyboardInterrupt: pass
+except KeyboardInterrupt:
+    pass

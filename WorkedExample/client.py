@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -20,9 +20,11 @@
 import optparse
 from opentracing import tags
 
-from client_common import Client, Container
+from client_common import Client
 
-from proton_tracing import init_tracer
+from proton.reactor import Container
+
+from proton.tracing import init_tracer
 
 tracer = init_tracer('client')
 
@@ -40,4 +42,4 @@ opts, args = parser.parse_args()
 with tracer.start_active_span('client-requests') as context:
     # Force trace for this operation
     context.span.set_tag(tags.SAMPLING_PRIORITY, 1)
-    Container(Client(opts.address, args or REQUESTS)).run()
+    Container(Client(opts.address, args or REQUESTS, tracer)).run()

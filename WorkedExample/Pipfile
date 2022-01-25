@@ -8,10 +8,7 @@ pylint = "*"
 rope = "*"
 
 [packages]
-python-qpid-proton = "*"
-opentracing = "*"
-jaeger-client = "*"
-futures = "*"
+python-qpid-proton = {extras = ["opentracing"], version = "*"}
 
 [requires]
-python_version = "3.7"
+python_version = "3.10"

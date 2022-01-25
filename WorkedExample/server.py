@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -18,15 +18,15 @@
 # under the License.
 #
 
-from __future__ import print_function
 import optparse
 
 from proton import Message, Url
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
-from proton_tracing import init_tracer
+from proton.tracing import init_tracer
 
 tracer = init_tracer('server')
+
 
 class Server(MessagingHandler):
     def __init__(self, url, address):
@@ -52,6 +52,7 @@ class Server(MessagingHandler):
             scope.span.log_kv({'result': response})
         self.server.send(msg)
 
+
 parser = optparse.OptionParser(usage="usage: %prog [options]")
 parser.add_option("-a", "--address", default="localhost:5672/examples",
                   help="address from which messages are received (default %default)")
@@ -61,4 +62,5 @@ url = Url(opts.address)
 
 try:
     Container(Server(url, url.path)).run()
-except KeyboardInterrupt: pass
+except KeyboardInterrupt:
+    pass

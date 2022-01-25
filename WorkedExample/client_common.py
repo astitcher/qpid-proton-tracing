@@ -17,27 +17,25 @@
 # under the License.
 #
 
-from __future__ import print_function, unicode_literals
 import uuid
-
-from opentracing import global_tracer
 
 from proton import Message
 from proton.handlers import MessagingHandler
-from proton.reactor import Container, DynamicNodeProperties
+
 
 class Client(MessagingHandler):
-    def __init__(self, url, requests):
+    def __init__(self, url, requests, tracer):
         super(Client, self).__init__()
         self.url = url
         self.requests_queued = []
         self.requests_outstanding = {}
+        self.tracer = tracer
         for r in requests:
             self.add_request(r)
 
     def add_request(self, r):
         tags = { 'request': r}
-        span = global_tracer().start_span('request', tags=tags)
+        span = self.tracer.start_span('request', tags=tags)
         id = uuid.uuid4()
         self.requests_queued.append( (id, r, span) )
 
@@ -51,7 +49,7 @@ class Client(MessagingHandler):
     def next_request(self):
         if self.receiver.remote_source.address:
             (id, req, span) = self.requests_queued.pop(0)
-            with global_tracer().scope_manager.activate(span, False):
+            with self.tracer.scope_manager.activate(span, False):
                 span.log_kv({'event': 'request-sent'})
                 msg = Message(reply_to=self.receiver.remote_source.address, correlation_id=id, body=req)
                 self.sender.send(msg)
